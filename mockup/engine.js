@@ -229,8 +229,40 @@ class OptionsPanel extends HTMLElement {
         </div>
         <div class="help-overlay-body">
           <div class="help-overlay-row">
-            <span class="help-overlay-action">Show this help</span>
+            <span class="help-overlay-action">Show/hide this help</span>
             <kbd class="help-overlay-key">?</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Close overlay/modal</span>
+            <kbd class="help-overlay-key">Esc</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Pan mode (hold)</span>
+            <kbd class="help-overlay-key">Space</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Zoom in</span>
+            <kbd class="help-overlay-key">Ctrl/Cmd + =</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Zoom out</span>
+            <kbd class="help-overlay-key">Ctrl/Cmd + -</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Reset zoom & pan</span>
+            <kbd class="help-overlay-key">Ctrl/Cmd + 0</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Zoom to 100%</span>
+            <kbd class="help-overlay-key">Ctrl/Cmd + 1</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Zoom to maximum</span>
+            <kbd class="help-overlay-key">Ctrl/Cmd + 9</kbd>
+          </div>
+          <div class="help-overlay-row">
+            <span class="help-overlay-action">Reset zoom & pan</span>
+            <kbd class="help-overlay-key">Double-click</kbd>
           </div>
         </div>
       </div>
