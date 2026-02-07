@@ -1832,14 +1832,28 @@ class OptionsPanel extends HTMLElement {
     backBtn.disabled = this.guideStep === 0;
     nextBtn.innerHTML = 'Next &#8594;';
 
-    // Preview highlight — scroll to target element and add pulsing outline
+    // Preview highlight — pan canvas to target element and add pulsing outline
     clearHighlight();
     if (opt.target && opt.target.view) switchView(opt.target.view);
     if (opt.target && opt.target.el) {
       setTimeout(() => {
         const el = document.getElementById(opt.target.el);
-        if (el) {
-          el.classList.add('mt-highlight');
+        if (!el) return;
+        el.classList.add('mt-highlight');
+        const view = el.closest('.mt-view');
+        const ws = view && view._canvasWorkspace;
+        if (ws) {
+          const viewRect = view.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const isHidden = elRect.width === 0 && elRect.height === 0;
+          // Skip panning to hidden elements (they have no meaningful position)
+          if (isHidden) return;
+          const contentX = (elRect.left - viewRect.left - ws.panX) / ws.zoom;
+          const contentY = (elRect.top - viewRect.top - ws.panY) / ws.zoom;
+          const centerX = viewRect.width / 2 - (contentX + elRect.width / (2 * ws.zoom)) * ws.zoom;
+          const centerY = viewRect.height / 2 - (contentY + elRect.height / (2 * ws.zoom)) * ws.zoom;
+          ws.setPan(centerX, centerY);
+        } else {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 100);
@@ -2093,8 +2107,8 @@ class CanvasWorkspace {
       storageKey: config.storageKey || 'mockup-canvas-state'
     };
     this.zoom = 1.0;
-    this.panX = 0;
-    this.panY = 0;
+    this.panX = 24; // Offset to show canvas content padding (--sp-6)
+    this.panY = 24;
     this.isPanning = false;
     this.isSpaceHeld = false;
     this.lastMouseX = 0;
@@ -2131,6 +2145,9 @@ class CanvasWorkspace {
     this.zoom = 1.0;
     this.panX = 0;
     this.panY = 0;
+    // Clear any scroll offset caused by scrollIntoView
+    this.container.scrollTop = 0;
+    this.container.scrollLeft = 0;
     this.updateTransform();
     this.updateZoomUI();
     this.saveState();
@@ -2172,8 +2189,8 @@ class CanvasWorkspace {
       if (saved) {
         const state = JSON.parse(saved);
         this.zoom = state.zoom || 1.0;
-        this.panX = state.panX || 0;
-        this.panY = state.panY || 0;
+        this.panX = state.panX !== undefined ? state.panX : 24;
+        this.panY = state.panY !== undefined ? state.panY : 24;
       }
     } catch (e) { /* corrupted data */ }
   }
