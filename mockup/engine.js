@@ -2,7 +2,7 @@
    ENGINE CODE — Do not modify
    ============================================================ */
 
-const ENGINE_VERSION = '0.5';
+const ENGINE_VERSION = '0.6';
 
 // --- Light DOM helpers for applyOptions ---
 function toggle(elementId, show) {
@@ -88,6 +88,9 @@ class OptionsPanel extends HTMLElement {
     this.hoverExpanded = false;
     this._previewActive = null;    // Set or null
     this._previewVariants = null;  // Object or null
+    this._isMobile = window.matchMedia('(max-width: 768px)').matches;
+    this._sheetExpanded = true;
+    this._copyPreviewOpen = false;
   }
 
   connectedCallback() {
@@ -153,6 +156,7 @@ class OptionsPanel extends HTMLElement {
   render() {
     this.shadowRoot.innerHTML = `<style>${this.getStyles()}</style>
     <div class="panel">
+      <div class="panel-drag-handle"><div class="handle-bar"></div></div>
       <div class="panel-resize-handle"></div>
       <div class="panel-toolbar">
         <button class="panel-collapse-btn" title="Collapse panel">${OptionsPanel.chevron('right')}</button>
@@ -228,6 +232,19 @@ class OptionsPanel extends HTMLElement {
             <span class="help-overlay-action">Show this help</span>
             <kbd class="help-overlay-key">?</kbd>
           </div>
+        </div>
+      </div>
+    </div>
+    <div class="copy-preview-overlay" style="display:none">
+      <div class="copy-preview-backdrop"></div>
+      <div class="copy-preview-modal">
+        <div class="copy-preview-header">
+          <span style="font-size:var(--text-lg);font-weight:700;">Prompt Preview</span>
+          <button class="copy-preview-close-btn">Close</button>
+        </div>
+        <div class="copy-preview-body"><pre class="copy-preview-text"></pre></div>
+        <div class="copy-preview-footer">
+          <button class="copy-preview-copy-btn">Copy to Clipboard</button>
         </div>
       </div>
     </div>`;
@@ -1015,6 +1032,220 @@ class OptionsPanel extends HTMLElement {
       box-shadow: 0 1px 0 var(--c-border);
     }
 
+    /* --- Drag Handle (mobile bottom sheet) --- */
+    .panel-drag-handle {
+      display: none;
+      justify-content: center;
+      padding: var(--sp-2) 0;
+      cursor: grab;
+      flex-shrink: 0;
+    }
+    .panel-drag-handle:active { cursor: grabbing; }
+    .panel-drag-handle .handle-bar {
+      width: 36px;
+      height: 4px;
+      background: var(--c-border-mid);
+      border-radius: 2px;
+    }
+
+    /* --- Collapsible Groups --- */
+    .group-label {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .group-label::after {
+      content: '\\25BC';
+      font-size: 9px;
+      color: var(--c-text-faint);
+      transition: transform var(--t-fast);
+    }
+    .group-label.collapsed::after {
+      transform: rotate(-90deg);
+    }
+    .group-options.collapsed {
+      display: none;
+    }
+
+    /* --- Copy Preview Modal --- */
+    .copy-preview-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--sp-4);
+    }
+    .copy-preview-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+    }
+    .copy-preview-modal {
+      position: relative;
+      background: var(--c-surface);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-float);
+      max-width: 600px;
+      width: 100%;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .copy-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--sp-4);
+      border-bottom: 1px solid var(--c-border-light);
+      flex-shrink: 0;
+    }
+    .copy-preview-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--sp-4);
+    }
+    .copy-preview-body pre {
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: var(--text-sm);
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--c-text-2);
+      line-height: 1.5;
+      margin: 0;
+    }
+    .copy-preview-footer {
+      display: flex;
+      gap: var(--sp-2);
+      padding: var(--sp-3) var(--sp-4);
+      border-top: 1px solid var(--c-border-light);
+      flex-shrink: 0;
+    }
+    .copy-preview-copy-btn {
+      flex: 1;
+      padding: var(--sp-3);
+      background: var(--c-primary);
+      color: #fff;
+      border: none;
+      border-radius: var(--r-md);
+      font-size: var(--text-base);
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 48px;
+    }
+    .copy-preview-copy-btn:hover { background: var(--c-primary-hover); }
+    .copy-preview-copy-btn.copied { background: var(--c-success); }
+    .copy-preview-close-btn {
+      padding: var(--sp-3) var(--sp-4);
+      background: var(--c-surface-alt);
+      color: var(--c-text-muted);
+      border: none;
+      border-radius: var(--r-md);
+      font-size: var(--text-base);
+      cursor: pointer;
+      min-height: 48px;
+    }
+    .copy-preview-close-btn:hover { background: var(--c-surface-alt-hover); }
+
+    /* --- Mobile: Container Query + Bottom Sheet --- */
+    :host {
+      container-type: inline-size;
+      container-name: panel;
+    }
+
+    @media (max-width: 768px) {
+      :host {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100% !important;
+        height: auto;
+        max-height: 70vh;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      :host(.mt-sheet-collapsed) {
+        transform: translateY(calc(100% - 52px));
+      }
+      .panel { border-left: none; border-top: 1px solid var(--c-border); }
+      .panel-resize-handle { display: none; }
+      .panel-drag-handle { display: flex; }
+
+      /* Touch targets (48px Material) */
+      .toggle-row { min-height: 48px; }
+      .toggle-switch { width: 44px; height: 24px; }
+      .toggle-slider::before { width: 20px; height: 20px; }
+      .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+      .toggle-name { font-size: var(--text-base); }
+      .variant-btn {
+        min-height: 48px;
+        padding: var(--sp-2) var(--sp-3);
+        font-size: var(--text-sm);
+      }
+      .combo-btn {
+        min-height: 44px;
+        padding: var(--sp-2) var(--sp-4);
+        font-size: var(--text-sm);
+      }
+      .guide-variant-card, .guide-skip-card {
+        min-height: 48px;
+        padding: var(--sp-3) var(--sp-2);
+      }
+      .btn-copy, .btn-reset {
+        min-height: 48px;
+        font-size: var(--text-md);
+      }
+      .guide-nav-back, .guide-nav-next {
+        min-height: 48px;
+        font-size: var(--text-base);
+      }
+
+      /* Full-width stacked cards */
+      .toggle-item { padding: var(--sp-2) var(--sp-4); }
+      .toggle-detail { padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-6); }
+
+      /* Grid variant picker */
+      .variant-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--sp-2);
+      }
+      .guide-variant-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--sp-2);
+      }
+
+      /* Chip row combos (scrollable) */
+      .combos-section {
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .combos-section::-webkit-scrollbar { display: none; }
+      .combo-btn {
+        display: inline-flex;
+        white-space: nowrap;
+        margin-bottom: 0;
+      }
+    }
+
+    /* --- Adaptive Orientation (landscape wider panel) --- */
+    @media (max-width: 768px) and (orientation: landscape) {
+      :host {
+        max-height: 85vh;
+      }
+      :host(.mt-sheet-collapsed) {
+        transform: translateY(calc(100% - 52px));
+      }
+    }
+
     /* --- Reduced Motion --- */
     @media (prefers-reduced-motion: reduce) {
       :host, .panel, .panel-header, .panel-body, .copy-footer, .collapse-label, .panel-collapse-btn {
@@ -1052,7 +1283,8 @@ class OptionsPanel extends HTMLElement {
     let html = '';
     groupOrder.forEach(tag => {
       if (showGroups) {
-        html += `<div class="group-label">${this.esc(viewMap[tag] || tag)}</div>`;
+        html += `<div class="group-label" data-group="${this.esc(tag)}">${this.esc(viewMap[tag] || tag)}</div>`;
+        html += `<div class="group-options" data-group-options="${this.esc(tag)}">`;
       }
       groups[tag].forEach(opt => {
         const isActive = this.activeOptions.has(opt.id);
@@ -1091,6 +1323,9 @@ class OptionsPanel extends HTMLElement {
         html += `</div>`; // end toggle-detail
         html += `</div>`; // end toggle-item
       });
+      if (showGroups) {
+        html += `</div>`; // end group-options
+      }
     });
     return html;
   }
@@ -1213,6 +1448,10 @@ class OptionsPanel extends HTMLElement {
     this.initResize();
     this.initKeyboard();
     this.initAutoExpand();
+    this.initMobileQuery();
+    this.initBottomSheet();
+    this.initCollapsibleGroups();
+    this.initCopyPreview();
 
     // Initialize guide view if in guide mode
     if (this.panelMode === 'guide') this.updateGuide();
@@ -1268,6 +1507,106 @@ class OptionsPanel extends HTMLElement {
       this.hoverExpanded = false;
       this.applyPanelLayout();
     });
+  }
+
+  initMobileQuery() {
+    this._mobileQuery = window.matchMedia('(max-width: 768px)');
+    this._mobileQuery.addEventListener('change', (e) => {
+      this._isMobile = e.matches;
+      this.applyPanelLayout();
+    });
+  }
+
+  initBottomSheet() {
+    const handle = this.shadowRoot.querySelector('.panel-drag-handle');
+    const toolbar = this.shadowRoot.querySelector('.panel-toolbar');
+    const setupDrag = (el) => {
+      let startY = 0;
+      let dragging = false;
+      el.addEventListener('touchstart', (e) => {
+        if (!this._isMobile) return;
+        startY = e.touches[0].clientY;
+        dragging = true;
+      }, { passive: true });
+      el.addEventListener('touchmove', (e) => {
+        if (!dragging || !this._isMobile) return;
+        const dy = e.touches[0].clientY - startY;
+        if (this._sheetExpanded && dy > 80) {
+          this._sheetExpanded = false;
+          this.classList.add('mt-sheet-collapsed');
+          dragging = false;
+        } else if (!this._sheetExpanded && dy < -40) {
+          this._sheetExpanded = true;
+          this.classList.remove('mt-sheet-collapsed');
+          dragging = false;
+        }
+      }, { passive: true });
+      el.addEventListener('touchend', () => { dragging = false; }, { passive: true });
+    };
+    setupDrag(handle);
+    setupDrag(toolbar);
+    // Tap drag handle toggles
+    handle.addEventListener('click', () => {
+      if (!this._isMobile) return;
+      this._sheetExpanded = !this._sheetExpanded;
+      this.classList.toggle('mt-sheet-collapsed', !this._sheetExpanded);
+    });
+  }
+
+  initCollapsibleGroups() {
+    const body = this.shadowRoot.querySelector('.panel-body');
+    if (!body) return;
+    body.querySelectorAll('.group-label').forEach(label => {
+      label.addEventListener('click', () => {
+        label.classList.toggle('collapsed');
+        const options = body.querySelector(`[data-group-options="${label.dataset.group}"]`);
+        if (options) options.classList.toggle('collapsed');
+      });
+    });
+  }
+
+  initCopyPreview() {
+    const root = this.shadowRoot;
+    const overlay = root.querySelector('.copy-preview-overlay');
+    const backdrop = root.querySelector('.copy-preview-backdrop');
+    const copyBtn = root.querySelector('.copy-preview-copy-btn');
+    const closeBtn = root.querySelector('.copy-preview-close-btn');
+
+    backdrop.addEventListener('click', () => this.closeCopyPreview());
+    closeBtn.addEventListener('click', () => this.closeCopyPreview());
+    copyBtn.addEventListener('click', () => {
+      const text = root.querySelector('.copy-preview-text').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = 'Copied!';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy to Clipboard';
+          copyBtn.classList.remove('copied');
+        }, 1500);
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this._copyPreviewOpen) {
+        e.preventDefault();
+        this.closeCopyPreview();
+      }
+    });
+  }
+
+  showCopyPreview(text) {
+    const root = this.shadowRoot;
+    root.querySelector('.copy-preview-text').textContent = text;
+    root.querySelector('.copy-preview-overlay').style.display = '';
+    const copyBtn = root.querySelector('.copy-preview-copy-btn');
+    copyBtn.textContent = 'Copy to Clipboard';
+    copyBtn.classList.remove('copied');
+    this._copyPreviewOpen = true;
+  }
+
+  closeCopyPreview() {
+    this.shadowRoot.querySelector('.copy-preview-overlay').style.display = 'none';
+    this._copyPreviewOpen = false;
   }
 
   initResize() {
@@ -1623,15 +1962,7 @@ class OptionsPanel extends HTMLElement {
       text += `\n---\n${mode.footer}\n`;
     }
 
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = this.shadowRoot.querySelector('.btn-copy');
-      btn.textContent = 'Copied!';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = 'Copy Prompt';
-        btn.classList.remove('copied');
-      }, 1500);
-    });
+    this.showCopyPreview(text);
   }
 
   resetAll() {
@@ -1674,6 +2005,18 @@ class OptionsPanel extends HTMLElement {
     const panel = this.shadowRoot.querySelector('.panel');
     const collapseBtn = this.shadowRoot.querySelector('.panel-collapse-btn');
     const viewTabs = document.getElementById('mt-view-tabs');
+
+    if (this._isMobile) {
+      document.body.style.paddingRight = '0px';
+      if (viewTabs) viewTabs.style.paddingRight = '0';
+      panel.classList.remove('collapsed');
+      if (this._sheetExpanded) {
+        this.classList.remove('mt-sheet-collapsed');
+      } else {
+        this.classList.add('mt-sheet-collapsed');
+      }
+      return;
+    }
 
     if (this.panelCollapsed && !this.hoverExpanded) {
       panel.classList.add('collapsed');
@@ -1756,6 +2099,12 @@ class CanvasWorkspace {
     this.isSpaceHeld = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
+    this._pinchStartDist = 0;
+    this._pinchStartZoom = 1;
+    this._pinchCenter = null;
+    this._touchPanning = false;
+    this._lastTouchX = 0;
+    this._lastTouchY = 0;
     this.loadState();
     this.attachEventListeners();
     this.updateTransform();
@@ -1833,6 +2182,9 @@ class CanvasWorkspace {
     this.container.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
     this.container.addEventListener('dblclick', this.handleDoubleClick.bind(this));
     this.container.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    this.container.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+    this.container.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+    this.container.addEventListener('touchend', this.handleTouchEnd.bind(this));
     document.addEventListener('mousemove', this.handleMouseMove.bind(this));
     document.addEventListener('mouseup', this.handleMouseUp.bind(this));
     document.addEventListener('keydown', this.handleKeyDown.bind(this));
@@ -1912,6 +2264,69 @@ class CanvasWorkspace {
       this.isSpaceHeld = false;
       this.container.classList.remove('mt-space-held');
     }
+  }
+
+  handleTouchStart(e) {
+    const touches = e.touches;
+    if (touches.length === 2) {
+      e.preventDefault();
+      this._pinchStartDist = this._getTouchDistance(touches);
+      this._pinchStartZoom = this.zoom;
+      this._pinchCenter = this._getTouchCenter(touches);
+    } else if (touches.length === 1) {
+      const t = touches[0];
+      const target = document.elementFromPoint(t.clientX, t.clientY);
+      const isCanvas = target === this.container || target === this.viewport || target === this.content;
+      if (isCanvas) {
+        e.preventDefault();
+        this._touchPanning = true;
+        this._lastTouchX = t.clientX;
+        this._lastTouchY = t.clientY;
+      }
+    }
+  }
+
+  handleTouchMove(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = this._getTouchDistance(e.touches);
+      const scale = dist / this._pinchStartDist;
+      const newZoom = this._pinchStartZoom * scale;
+      const center = this._getTouchCenter(e.touches);
+      const rect = this.container.getBoundingClientRect();
+      this.setZoom(newZoom, center.x - rect.left, center.y - rect.top);
+    } else if (this._touchPanning && e.touches.length === 1) {
+      e.preventDefault();
+      const t = e.touches[0];
+      this.setPan(
+        this.panX + t.clientX - this._lastTouchX,
+        this.panY + t.clientY - this._lastTouchY
+      );
+      this._lastTouchX = t.clientX;
+      this._lastTouchY = t.clientY;
+    }
+  }
+
+  handleTouchEnd(e) {
+    if (e.touches.length < 2) {
+      this._pinchStartDist = 0;
+    }
+    if (e.touches.length === 0) {
+      this._touchPanning = false;
+    }
+  }
+
+  _getTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  _getTouchCenter(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    };
   }
 
   isInputFocused() { return isInputFocused(); }
