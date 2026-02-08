@@ -2458,6 +2458,62 @@ function generateApplyOptions(config) {
   };
 }
 
+// --- Two-file mode: generate DOM from window.MOCKUP ---
+function initFromMockupGlobal() {
+  if (!window.MOCKUP) return;
+  const m = window.MOCKUP;
+  console.log('[engine] Two-file mode: building DOM from window.MOCKUP');
+
+  // Set page title
+  if (m.config && m.config.title) {
+    document.title = m.config.title;
+  }
+
+  // Create view tabs container
+  const viewTabs = document.createElement('div');
+  viewTabs.id = 'mt-view-tabs';
+
+  // Create views container
+  const viewsContainer = document.createElement('div');
+  viewsContainer.id = 'mt-views';
+  if (m.config && m.config.views) {
+    m.config.views.forEach((v, i) => {
+      const viewDiv = document.createElement('div');
+      viewDiv.id = 'view-' + v.id;
+      viewDiv.className = 'mt-view' + (i === 0 ? ' active' : '');
+      // Content is from the developer's own .mockup.js data file, not user input
+      viewDiv.innerHTML = (m.views && m.views[v.id]) || '';
+      viewsContainer.appendChild(viewDiv);
+    });
+  }
+
+  // Create options panel
+  const optionsPanel = document.createElement('options-panel');
+
+  // Create config script tag
+  const configScript = document.createElement('script');
+  configScript.type = 'application/json';
+  configScript.id = 'mockup-config';
+  configScript.textContent = JSON.stringify(m.config);
+
+  // Insert all elements into body before the engine script tag
+  const engineScript = document.currentScript || document.querySelector('script[src*="engine"]');
+  const parent = engineScript ? engineScript.parentNode : document.body;
+  if (engineScript) {
+    parent.insertBefore(viewTabs, engineScript);
+    parent.insertBefore(viewsContainer, engineScript);
+    parent.insertBefore(optionsPanel, engineScript);
+    parent.insertBefore(configScript, engineScript);
+  } else {
+    parent.appendChild(viewTabs);
+    parent.appendChild(viewsContainer);
+    parent.appendChild(optionsPanel);
+    parent.appendChild(configScript);
+  }
+}
+
+initFromMockupGlobal();
+
 // --- Boot ---
 const CONFIG = loadConfig();
 validateConfig(CONFIG);
